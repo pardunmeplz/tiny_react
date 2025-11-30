@@ -10,9 +10,12 @@ export interface vnode {
     children: Array<vnode>
 }
 
-var currContianer: HTMLElement | null = null
+var currContainer: HTMLElement | null = null
 var currVnode: vnode | null = null
 export var currComponent: component | null = null
+
+
+var snapshot: vnode | null = null
 
 
 function getElement(node: vnode): HTMLElement | Text {
@@ -24,16 +27,24 @@ function getElement(node: vnode): HTMLElement | Text {
     }
 
     if (node.type == constants.Element_Text_NODE) return document.createTextNode(node.props.nodeValue)
-    node = evaluateComponent(node)
 
     return createDomElement(node)
 }
 
-function evaluateComponent(node: vnode): vnode {
-    if (typeof node.type != "function") return node
+function evaluateComponents(node: vnode): vnode {
+    // unique key setup
+    if (node.props.key) {
+        setComponent("" + node.props.key)
+    } else {
+        setComponent(idGenerator.getId())
+    }
 
-    currComponent = node.type
-    return node.type({ ...node.props, children: node.children })
+    if (typeof node.type == "function") {
+        currComponent = node.type
+        node = node.type({ ...node.props, children: node.children })
+    }
+    node.children = node.children.map(child => evaluateComponents(child))
+    return node
 }
 
 function createDomElement(node: vnode): HTMLElement | Text {
@@ -48,26 +59,45 @@ function createDomElement(node: vnode): HTMLElement | Text {
         }
     })
 
+    element.setAttribute("vdom-id", idGenerator.getId())
+
     idGenerator.addChild()
+
     node.children.forEach((x, i) => {
         idGenerator.replace(i)
         element.append(getElement(x))
     })
+
     idGenerator.dropChild()
 
     return element
 }
 
+function recon(node: vnode, container: HTMLElement) {
+    const snapshot_new = evaluateComponents(node)
+
+    if (!snapshot) {
+        // snapshot = snapshot_new
+        container.replaceChildren(getElement(snapshot_new))
+        return
+    }
+
+    // snapshot = snapshot_new
+}
+
 function render(node: vnode, container: HTMLElement) {
-    currContianer = container
+    currContainer = container
     currVnode = node
     idGenerator.reset()
-    container.replaceChildren(getElement(node))
+    recon(node, container)
+    // container.replaceChildren(getElement(node))
 }
 
 export function reRender() {
     idGenerator.reset()
-    if (currVnode != null) currContianer?.replaceChildren(getElement(currVnode))
+    if (!currVnode || !currContainer) return
+    // if (currVnode != null) currContianer?.replaceChildren(getElement(currVnode))
+    recon(currVnode, currContainer)
 }
 
 export default render
