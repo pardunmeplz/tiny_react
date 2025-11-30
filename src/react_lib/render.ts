@@ -1,29 +1,44 @@
 import constants from "./constants"
-import { createTextNode } from "./createElement"
-import { setComponent, componentId } from "./useState"
+import idGenerator from "./idGenerator"
+import { setComponent } from "./useState"
 
 export type component = (prop: Record<string, any>) => vnode
 
 export interface vnode {
-    type: string
+    type: string | component
     props: Record<string, any>
-    children: Array<vnode | component | string | number>
+    children: Array<vnode>
 }
 
-
 var currContianer: HTMLElement | null = null
-var currComponent: component | null = null
+var currVnode: vnode | null = null
+export var currComponent: component | null = null
 
-var componentIdCounter = 0
 
 function getElement(node: vnode): HTMLElement | Text {
-    const id = componentId!
-    switch (node.type) {
-        case constants.Element_Text_NODE:
-            return document.createTextNode(node.props.nodeValue)
+    // unique key setup
+    if (node.props.key) {
+        setComponent("" + node.props.key)
+    } else {
+        setComponent(idGenerator.getId())
     }
 
-    const element = document.createElement(node.type)
+    if (node.type == constants.Element_Text_NODE) return document.createTextNode(node.props.nodeValue)
+    node = evaluateComponent(node)
+
+    return createDomElement(node)
+}
+
+function evaluateComponent(node: vnode): vnode {
+    if (typeof node.type != "function") return node
+
+    currComponent = node.type
+    return node.type({ ...node.props, children: node.children })
+}
+
+function createDomElement(node: vnode): HTMLElement | Text {
+
+    const element = document.createElement(node.type as string)
     Object.keys(node.props).forEach((key) => {
         if (key.startsWith("on") && typeof node.props[key] == "function") {
             // all event listners will start with on
@@ -33,38 +48,26 @@ function getElement(node: vnode): HTMLElement | Text {
         }
     })
 
-    node.children.forEach((x) => {
-        switch (typeof x) {
-            case "string":
-            case "number":
-                element.append(getElement(createTextNode(x)))
-                break
-            case "function":
-                setComponent(++componentIdCounter)
-                element.append(getElement(x({})))
-                setComponent(id)
-                break
-            case "object":
-                element.append(getElement(x))
-                break
-
-        }
+    idGenerator.addChild()
+    node.children.forEach((x, i) => {
+        idGenerator.replace(i)
+        element.append(getElement(x))
     })
+    idGenerator.dropChild()
+
     return element
 }
 
-function render(component: component, container: HTMLElement) {
+function render(node: vnode, container: HTMLElement) {
     currContianer = container
-    currComponent = component
-    componentIdCounter = 0
-    setComponent(++componentIdCounter)
-    container.replaceChildren(getElement(component({})))
+    currVnode = node
+    idGenerator.reset()
+    container.replaceChildren(getElement(node))
 }
 
 export function reRender() {
-    componentIdCounter = 0
-    setComponent(++componentIdCounter)
-    if (currComponent != null) currContianer?.replaceChildren(getElement(currComponent({})))
+    idGenerator.reset()
+    if (currVnode != null) currContianer?.replaceChildren(getElement(currVnode))
 }
 
 export default render

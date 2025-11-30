@@ -1,6 +1,16 @@
 import constants from "./constants";
-import type { vnode } from "./render";
+import type { component, vnode } from "./render";
 
-export function createTextNode(text: number | string): vnode {
+function createTextNode(text: number | string): vnode {
     return { type: constants.Element_Text_NODE, props: { nodeValue: text }, children: [] }
+}
+
+export function createElement(type: string | component, props?: Record<string, any>, children?: Array<vnode | string | number>): vnode {
+    if (!children) children = []
+    const childrenFinal = children.map(x => {
+        if (typeof x == "string" || typeof x == "number") return createTextNode(x)
+        return x
+    })
+
+    return { type: type, props: props ?? {}, children: childrenFinal }
 }
