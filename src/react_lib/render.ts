@@ -14,6 +14,11 @@ var currContainer: HTMLElement | null = null
 var currVnode: vnode | null = null
 export var currComponent: component | null = null
 
+type DomElement = (HTMLElement | ChildNode | Text) & {
+    _handlers?: Record<string, (e: Event) => void>
+    _listeners?: Record<string, EventListener>
+}
+
 var snapshot: vnode | null = null
 
 const idGenerator = {
@@ -25,19 +30,22 @@ const idGenerator = {
     reset: function() { this.id = ["0"] }
 }
 
-function createElement(node: vnode): HTMLElement | Text {
+function createElement(node: vnode): DomElement {
     if (node.type == constants.Element_Text_NODE) return document.createTextNode(node.props.nodeValue)
-    const element = document.createElement(node.type as string)
+    const element: DomElement = document.createElement(node.type as string)
     Object.keys(node.props).forEach((key) => {
         if (key.startsWith("on") && typeof node.props[key] == "function") {
             // all event listners will start with on
-            element.addEventListener(key.toLowerCase().substring(2), node.props[key])
+            createListener(element, key)
+            if (element._handlers == undefined) element._handlers = {}
+            element._handlers[key] = node.props[key]
+            // element.addEventListener(key.toLowerCase().substring(2), node.props[key])
         } else {
-            element.setAttribute(key, node.props[key])
+            (element as HTMLElement).setAttribute(key, node.props[key])
         }
     })
 
-    node.children.forEach(x => element.append(createElement(x)))
+    node.children.forEach(x => (element as HTMLElement).append(createElement(x)))
 
     return element
 }
@@ -110,6 +118,7 @@ function commit(prev: vnode, curr: vnode, dom: HTMLElement | Text | ChildNode): 
 
     // update props
     updateProps(prev.props, curr.props, dom)
+    updateListeners(prev.props, curr.props, dom)
 
 
     let deleteArr: Array<vnode | null> = [...prev.children]
@@ -150,6 +159,51 @@ function updateProps(prev: Record<string, any>, curr: Record<string, any>, domNo
     })
 
     Object.keys(prev).filter(key => !(key.startsWith("on") && typeof curr[key] == "function") && !keys.includes(key)).forEach(key => dom.removeAttribute(key))
+}
+
+
+function updateListeners(prev: Record<string, any>, curr: Record<string, any>, domNode: DomElement) {
+
+    const dom = domNode as HTMLElement
+    if (typeof dom.setAttribute != 'function') return
+    const keys = Object.keys(curr)
+
+    keys.forEach(key => {
+        if (!(key.startsWith("on") && typeof curr[key] == "function")) return
+        if (curr[key] == prev[key]) return
+
+        if (domNode._handlers == undefined) domNode._handlers = {}
+
+        if (!Object.hasOwn(prev, key)) {
+            // add event handler
+            createListener(domNode, key)
+
+        }
+        domNode._handlers[key] = curr[key] as () => void
+    })
+
+    // discard deleted event handlers
+    Object.keys(prev).filter(key => key.startsWith("on") && typeof curr[key] == "function" && !keys.includes(key))
+        .forEach(key => {
+            // dom.removeAttribute(key)
+            if (!domNode?._listeners?.[key]) return
+            domNode.removeEventListener(key.toLowerCase().substring(2), domNode?._listeners?.[key])
+            delete domNode?._listeners?.[key]
+            delete domNode?._handlers?.[key]
+        })
+}
+
+function createListener(dom: DomElement, key: string) {
+    if (dom._listeners == undefined) dom._listeners = {}
+
+    const realListener = function(this: DomElement, event: Event) {
+        const handler = (this)._handlers?.[key]
+        if (handler) handler(event)
+    }
+
+    dom._listeners[key] = realListener
+
+    dom.addEventListener(key.toLowerCase().substring(2), realListener)
 }
 
 function getTypeString(node: vnode): string {
