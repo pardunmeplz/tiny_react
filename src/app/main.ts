@@ -7,7 +7,7 @@ const contianer = document.querySelector<HTMLDivElement>('#app')!
 
 const counter = () => {
     const [state, setState] = useState(0)
-    return createElement("div", { onClick: () => { setState(state + 1) } }, ["Count ", state])
+    return createElement("div", { onClick: () => { setState((x: any) => x + 1) } }, ["Count ", state])
 }
 
 render(createElement(() => {

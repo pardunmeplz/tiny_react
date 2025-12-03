@@ -1,5 +1,5 @@
 import constants from "./constants"
-import { componentId, setComponent } from "./useState"
+import { componentId, setComponent, unmountState } from "./useState"
 
 export type component = (prop: Record<string, any>) => vnode
 
@@ -85,7 +85,7 @@ function recon(node: vnode, container: HTMLElement) {
     const snapshot_new = renderComponent(node)
 
     if (!snapshot) {
-        // snapshot = snapshot_new // uncomment to start diffing instead of full dom re-renders
+        snapshot = snapshot_new // uncomment to start diffing instead of full dom re-renders
         container.replaceChildren(createElement(snapshot_new))
         return
     }
@@ -131,6 +131,7 @@ function commit(prev: vnode, curr: vnode, dom: HTMLElement | Text | ChildNode): 
         commit(prevChild, currChild, childDom)
     })
 
+    deleteArr.forEach(node => node?.id ? unmountState(node.id) : null)
     deleteArr.map((val, i) => !val ? null : dom.childNodes[i]).forEach(child => child ? dom.removeChild(child) : null)
 
     return dom

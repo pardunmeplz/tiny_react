@@ -1,7 +1,6 @@
-import { currComponent, reRender, type component } from "./render";
+import { reRender } from "./render";
 
-// {componentId: [[state,state,state],componentPointer]}
-const globalState: Record<string, [Array<any>, component | null]> = {}
+const globalState: Record<string, Array<any>> = {}
 var hookCount = 0
 export var componentId: string | null = null
 
@@ -11,23 +10,24 @@ function useState(x: any): [any, (value: any) => void] {
     const index = hookCount++
 
     // add missing component entry
-    if (!Object.hasOwn(globalState, id) || globalState[id][1] != currComponent) {
-        globalState[id] = [[x], currComponent]
+    if (!Object.hasOwn(globalState, id)) {
+        globalState[id] = []
     }
 
     // add missing state entry
-    if (globalState[id][0].length <= index) {
-        globalState[id][0].push(x)
+    if (globalState[id].length <= index) {
+        globalState[id].push(x)
     }
 
     const setter = (value: any) => {
         queueMicrotask(() => {
-            globalState[id][0][index] = value
+            if (typeof value == "function") value = value(globalState[id][index])
+            globalState[id][index] = value
             reRender()
         })
     }
 
-    return [globalState[id][0][index], setter]
+    return [globalState[id][index], setter]
 }
 
 export default useState
@@ -36,4 +36,8 @@ export default useState
 export function setComponent(id: string) {
     hookCount = 0
     componentId = id
+}
+
+export function unmountState(componentId: string) {
+    delete globalState[componentId]
 }
