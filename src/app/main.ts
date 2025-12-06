@@ -14,6 +14,10 @@ render(createElement(() => {
 
     const [state, setState] = useState(20)
 
-    return createElement("div", { onclick: () => { setState(state - 1) } },
-        ["Counter list", createElement(counter), state > 0 ? createElement(counter) : "KILLED", createElement(counter)])
+    return createElement("div", { onclick: () => { setState((x: any) => x - 1) } },
+        ["Counter list", createElement(counter), state > 0 ? createElement(counter) : createElement(test), createElement(counter)])
 }, {}), contianer)
+
+const test = () => {
+    return createElement("div", {}, ["KILLED"])
+}

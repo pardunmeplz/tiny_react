@@ -70,14 +70,11 @@ function renderComponent(node: vnode): vnode {
     node.id = idGenerator.getId()
 
     idGenerator.addChild()
-    const bucket: Record<string, number> = {}
-    node.children = node.children.map((child) => {
+    node.children = node.children.map((child, i) => {
 
-        var type = getTypeString(child)
-        if (!Object.hasOwn(bucket, type)) bucket[type] = 0
-        else bucket[type]++
+        // var type = getTypeString(child)
 
-        idGenerator.replace(type + bucket[type])
+        idGenerator.replace("" + i)
         return renderComponent(child)
     })
     idGenerator.dropChild()
@@ -98,6 +95,7 @@ function recon(node: vnode, container: HTMLElement) {
         return
     }
 
+    console.log(snapshot, snapshot_new)
     commit(snapshot, snapshot_new, container.childNodes[0])
     snapshot = snapshot_new
 }
@@ -105,6 +103,7 @@ function recon(node: vnode, container: HTMLElement) {
 function commit(prev: vnode, curr: vnode, dom: HTMLElement | Text | ChildNode): (HTMLElement | Text | ChildNode) {
     // check type
     if (prev.type != curr.type) {
+        if (prev.id) unmountState(prev.id)
         const newDom = createElement(curr)
         dom.replaceWith(newDom)
         return newDom
@@ -124,10 +123,13 @@ function commit(prev: vnode, curr: vnode, dom: HTMLElement | Text | ChildNode): 
     let deleteArr: Array<vnode | null> = [...prev.children]
 
     // todo: you need to check changes in index between old and new children and reorder dom accordingly
-    curr.children.forEach((currChild) => {
+    curr.children.forEach((currChild, index) => {
         const i = deleteArr.findIndex(old => currChild.id == old?.id)
         if (i == -1) {
             // mount child here
+            const element = createElement(currChild)
+            dom.insertBefore(element, dom.childNodes[index])
+            deleteArr.splice(index, 0, null)
             return
         }
 
@@ -150,7 +152,7 @@ function commit(prev: vnode, curr: vnode, dom: HTMLElement | Text | ChildNode): 
 function updateProps(prev: Record<string, any>, curr: Record<string, any>, domNode: HTMLElement | Text | ChildNode) {
 
     const dom = domNode as HTMLElement
-    if (typeof dom.setAttribute != 'function') return
+    if (typeof dom?.setAttribute != 'function') return
     const keys = Object.keys(curr)
     keys.forEach(key => {
         if (key.startsWith("on") && typeof curr[key] == "function") return
@@ -204,11 +206,6 @@ function createListener(dom: DomElement, key: string) {
     dom._listeners[key] = realListener
 
     dom.addEventListener(key.toLowerCase().substring(2), realListener)
-}
-
-function getTypeString(node: vnode): string {
-    if (typeof node.type == "function") return node.type.name
-    return node.type
 }
 
 function render(node: vnode, container: HTMLElement) {
