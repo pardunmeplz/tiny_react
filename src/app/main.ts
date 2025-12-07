@@ -7,17 +7,21 @@ const contianer = document.querySelector<HTMLDivElement>('#app')!
 
 const counter = () => {
     const [state, setState] = useState(0)
-    return createElement("div", { onClick: () => { setState((x: any) => x + 1) } }, ["Count ", state])
+    return createElement("div", { onClick: () => { setState(state + 1) } }, ["Count ", state])
 }
 
 render(createElement(() => {
 
     const [state, setState] = useState(20)
 
+    if (state > 0) return createElement("div", { onclick: () => { setState((x: any) => x - 1) } },
+        ["Counter list", createElement(counter, { key: "A" }), createElement(counter), createElement(counter, { key: "B" })])
+
     return createElement("div", { onclick: () => { setState((x: any) => x - 1) } },
-        ["Counter list", createElement(counter), state > 0 ? createElement(counter) : createElement(test), createElement(counter)])
+        ["Counter list", createElement(counter, { key: "B" }), createElement(counter), createElement(counter, { key: "A" })])
 }, {}), contianer)
 
-const test = () => {
-    return createElement("div", {}, ["KILLED"])
-}
+// const test = () => {
+//     const [state, _] = useState(55)
+//     return createElement("div", {}, [state])
+// }

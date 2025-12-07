@@ -72,9 +72,9 @@ function renderComponent(node: vnode): vnode {
     idGenerator.addChild()
     node.children = node.children.map((child, i) => {
 
-        // var type = getTypeString(child)
+        var type = getTypeString(child)
 
-        idGenerator.replace("" + i)
+        idGenerator.replace(type + i)
         return renderComponent(child)
     })
     idGenerator.dropChild()
@@ -123,20 +123,18 @@ function commit(prev: vnode, curr: vnode, dom: HTMLElement | Text | ChildNode): 
     let deleteArr: Array<vnode | null> = [...prev.children]
 
     // todo: you need to check changes in index between old and new children and reorder dom accordingly
-    curr.children.forEach((currChild, index) => {
-        const i = deleteArr.findIndex(old => currChild.id == old?.id)
-        if (i == -1) {
+    curr.children.forEach((currChild, i) => {
+        // const i = deleteArr.findIndex(old => currChild.id == old?.id)
+        if (deleteArr.length <= i) {
             // mount child here
             const element = createElement(currChild)
-            dom.insertBefore(element, dom.childNodes[index])
-            deleteArr.splice(index, 0, null)
+            dom.appendChild(element)
+            // deleteArr.splice(index, 0, null)
             return
         }
 
-        // since screenshot is the prev vdom rep, it should mirror the stale dom in structure so indices should match
         const childDom = dom.childNodes[i]
         const prevChild = deleteArr[i]!
-
         deleteArr[i] = null
 
         commit(prevChild, currChild, childDom)
@@ -214,6 +212,11 @@ function render(node: vnode, container: HTMLElement) {
     idGenerator.reset()
     recon(node, container)
     // container.replaceChildren(getElement(node))
+}
+
+function getTypeString(node: vnode): string {
+    if (typeof node.type == "function") return node.type.name
+    return node.type
 }
 
 export function reRender() {
