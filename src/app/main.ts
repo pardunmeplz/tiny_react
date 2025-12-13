@@ -6,19 +6,16 @@ import './style.css'
 const contianer = document.querySelector<HTMLDivElement>('#app')!
 
 const counter = () => {
-    const [state, setState] = useState(0)
-    return createElement("div", { onClick: () => { setState(state + 1) } }, ["Count ", state])
+    const [state, setState] = useState("")
+    return createElement("input", { onChange: (e: any) => { setState(e.target.value.toUpperCase()) }, value: state }, [])
 }
 
 render(createElement(() => {
-
-    const [state, setState] = useState(20)
-
-    if (state > 0) return createElement("div", { onclick: () => { setState((x: any) => x - 1) } },
+    return createElement("div", {},
         ["Counter list", createElement(counter, { key: "A" }), createElement(counter), createElement(counter, { key: "B" })])
 
-    return createElement("div", { onclick: () => { setState((x: any) => x - 1) } },
-        ["Counter list", createElement(counter, { key: "B" }), createElement(counter), createElement(counter, { key: "A" })])
+    // return createElement("div", { onClick: () => { setState((x: any) => x - 1) } },
+    //     ["Counter list", createElement(counter, { key: "B" }), createElement(counter), createElement(counter, { key: "A" })])
 }, {}), contianer)
 
 // const test = () => {

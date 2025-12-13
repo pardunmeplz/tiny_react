@@ -1,4 +1,5 @@
 import constants from "./constants"
+import { createListener, updateProps } from "./updateProperties"
 import { componentId, setComponent, unmountState } from "./useState"
 
 export type component = (prop: Record<string, any>) => vnode
@@ -8,13 +9,14 @@ export interface vnode {
     props: Record<string, any>
     children: Array<vnode>
     id?: string
+    dom?: DomElement
 }
 
 var currContainer: HTMLElement | null = null
 var currVnode: vnode | null = null
 export var currComponent: component | null = null
 
-type DomElement = (HTMLElement | ChildNode | Text) & {
+export type DomElement = (HTMLElement | ChildNode | Text) & {
     _handlers?: Record<string, (e: Event) => void>
     _listeners?: Record<string, EventListener>
 }
@@ -31,7 +33,11 @@ const idGenerator = {
 }
 
 function createElement(node: vnode): DomElement {
-    if (node.type == constants.Element_Text_NODE) return document.createTextNode(node.props.nodeValue)
+    if (node.type == constants.Element_Text_NODE) {
+        var dom = document.createTextNode(node.props.nodeValue)
+        node.dom = dom
+        return dom
+    }
     const element: DomElement = document.createElement(node.type as string)
     Object.keys(node.props).forEach((key) => {
         if (key.startsWith("on") && typeof node.props[key] == "function") {
@@ -39,13 +45,13 @@ function createElement(node: vnode): DomElement {
             createListener(element, key)
             if (element._handlers == undefined) element._handlers = {}
             element._handlers[key] = node.props[key]
-            // element.addEventListener(key.toLowerCase().substring(2), node.props[key])
         } else {
             (element as HTMLElement).setAttribute(key, node.props[key])
         }
     })
 
     node.children.forEach(x => (element as HTMLElement).append(createElement(x)))
+    node.dom = element
 
     return element
 }
@@ -56,12 +62,7 @@ function renderComponent(node: vnode): vnode {
     const parentId = componentId
     if (typeof node.type == "function") {
 
-        // unique key setup for new component boundary
-        if (node.props.key) {
-            setComponent("" + node.props.key)
-        } else {
-            setComponent(idGenerator.getId())
-        }
+        setComponent(idGenerator.getId())
 
         currComponent = node.type
         node = node.type({ ...node.props, children: node.children })
@@ -74,7 +75,11 @@ function renderComponent(node: vnode): vnode {
 
         var type = getTypeString(child)
 
-        idGenerator.replace(type + i)
+        if (child.props.key) {
+            idGenerator.replace(child.props.key + i)
+        } else {
+            idGenerator.replace(type + i)
+        }
         return renderComponent(child)
     })
     idGenerator.dropChild()
@@ -89,121 +94,71 @@ function renderComponent(node: vnode): vnode {
 function recon(node: vnode, container: HTMLElement) {
     const snapshot_new = renderComponent(node)
 
-    if (!snapshot) {
+    if (!snapshot || !snapshot?.dom) {
         snapshot = snapshot_new // uncomment to start diffing instead of full dom re-renders
         container.replaceChildren(createElement(snapshot_new))
         return
     }
 
-    console.log(snapshot, snapshot_new)
-    commit(snapshot, snapshot_new, container.childNodes[0])
+    commit(snapshot, snapshot_new)
     snapshot = snapshot_new
 }
 
-function commit(prev: vnode, curr: vnode, dom: HTMLElement | Text | ChildNode): (HTMLElement | Text | ChildNode) {
+function commit(prev: vnode, curr: vnode) {
+
     // check type
     if (prev.type != curr.type) {
         if (prev.id) unmountState(prev.id)
         const newDom = createElement(curr)
-        dom.replaceWith(newDom)
+        prev?.dom?.replaceWith(newDom)
         return newDom
     }
 
     // check text nodes
     if (prev.type == constants.Element_Text_NODE && prev.props.nodeValue != curr.props.nodeValue) {
-        (dom as Text).nodeValue = curr.props.nodeValue
-        return dom
+        (prev.dom as Text).nodeValue = curr.props.nodeValue
+        return prev.dom!
     }
 
     // update props
-    updateProps(prev.props, curr.props, dom)
-    updateListeners(prev.props, curr.props, dom)
+    updateProps(prev.props, curr.props, prev.dom!)
 
 
+    curr.dom = prev.dom // we have confirmed this node is not re-rendered
     let deleteArr: Array<vnode | null> = [...prev.children]
 
     // todo: you need to check changes in index between old and new children and reorder dom accordingly
     curr.children.forEach((currChild, i) => {
-        // const i = deleteArr.findIndex(old => currChild.id == old?.id)
-        if (deleteArr.length <= i) {
-            // mount child here
-            const element = createElement(currChild)
-            dom.appendChild(element)
-            // deleteArr.splice(index, 0, null)
+
+        // matching dom nodes scenario
+        if (deleteArr.length > i && currChild.id == deleteArr[i]?.id) {
+            commit(deleteArr.splice(i, 1, null)[0]!, currChild)
             return
         }
 
-        const childDom = dom.childNodes[i]
-        const prevChild = deleteArr[i]!
-        deleteArr[i] = null
+        const prevIndex = deleteArr.findIndex(old => currChild.id == old?.id)
 
-        commit(prevChild, currChild, childDom)
+        // reorder scenario
+        if (prevIndex != -1) {
+            commit(deleteArr.splice(prevIndex, 1, null)[0]!, currChild)
+            return
+        }
+
+        // new dom element mount scenario
+        if (deleteArr.length <= i) {
+            const element = createElement(currChild)
+            prev.dom?.appendChild(element)
+            // deleteArr.splice(index, 0, null)
+            return
+
+        }
+
+        commit(deleteArr.splice(i, 1, null)[0]!, currChild)
     })
 
     deleteArr.forEach(node => node?.id ? unmountState(node.id) : null)
-    deleteArr.map((val, i) => !val ? null : dom.childNodes[i]).forEach(child => child ? dom.removeChild(child) : null)
+    deleteArr.map((val, i) => !val ? null : prev.dom?.childNodes[i]).forEach(child => child ? prev.dom?.removeChild(child) : null)
 
-    return dom
-}
-
-
-function updateProps(prev: Record<string, any>, curr: Record<string, any>, domNode: HTMLElement | Text | ChildNode) {
-
-    const dom = domNode as HTMLElement
-    if (typeof dom?.setAttribute != 'function') return
-    const keys = Object.keys(curr)
-    keys.forEach(key => {
-        if (key.startsWith("on") && typeof curr[key] == "function") return
-        if (curr[key] == prev[key]) return
-        dom.setAttribute(key, curr[key])
-    })
-
-    Object.keys(prev).filter(key => !(key.startsWith("on") && typeof curr[key] == "function") && !keys.includes(key)).forEach(key => dom.removeAttribute(key))
-}
-
-
-function updateListeners(prev: Record<string, any>, curr: Record<string, any>, domNode: DomElement) {
-
-    const dom = domNode as HTMLElement
-    if (typeof dom.setAttribute != 'function') return
-    const keys = Object.keys(curr)
-
-    keys.forEach(key => {
-        if (!(key.startsWith("on") && typeof curr[key] == "function")) return
-        if (curr[key] == prev[key]) return
-
-        if (domNode._handlers == undefined) domNode._handlers = {}
-
-        if (!Object.hasOwn(prev, key)) {
-            // add event handler
-            createListener(domNode, key)
-
-        }
-        domNode._handlers[key] = curr[key] as () => void
-    })
-
-    // discard deleted event handlers
-    Object.keys(prev).filter(key => key.startsWith("on") && typeof curr[key] == "function" && !keys.includes(key))
-        .forEach(key => {
-            // dom.removeAttribute(key)
-            if (!domNode?._listeners?.[key]) return
-            domNode.removeEventListener(key.toLowerCase().substring(2), domNode?._listeners?.[key])
-            delete domNode?._listeners?.[key]
-            delete domNode?._handlers?.[key]
-        })
-}
-
-function createListener(dom: DomElement, key: string) {
-    if (dom._listeners == undefined) dom._listeners = {}
-
-    const realListener = function(this: DomElement, event: Event) {
-        const handler = (this)._handlers?.[key]
-        if (handler) handler(event)
-    }
-
-    dom._listeners[key] = realListener
-
-    dom.addEventListener(key.toLowerCase().substring(2), realListener)
 }
 
 function render(node: vnode, container: HTMLElement) {
