@@ -23,10 +23,10 @@ export function updateProps(prev: Record<string, any>, curr: Record<string, any>
     Object.keys(prev).forEach(key => {
         if (domProperties.includes(key)) {
             if (!Object.hasOwn(curr, key)) (domNode as any)[key] = null
-        } else if (key.startsWith("on") && typeof curr[key] == "function") {
-            listenersPrev[key] = curr[key]
+        } else if (key.startsWith("on") && typeof prev[key] == "function") {
+            listenersPrev[key] = prev[key]
         } else {
-            attributesPrev[key] = curr[key]
+            attributesPrev[key] = prev[key]
         }
     })
 
@@ -56,6 +56,7 @@ function updateAttributes(prev: Record<string, any>, curr: Record<string, any>, 
 
 function updateListeners(prev: Record<string, any>, curr: Record<string, any>, domNode: DomElement) {
 
+    if (Object.keys(prev).length != Object.keys(curr).length) console.log(prev, curr)
     const dom = domNode as HTMLElement
     if (typeof dom.setAttribute != 'function') return
     const keys = Object.keys(curr)
@@ -75,8 +76,9 @@ function updateListeners(prev: Record<string, any>, curr: Record<string, any>, d
     })
 
     // discard deleted event handlers
-    Object.keys(prev).filter(key => key.startsWith("on") && typeof prev[key] == "function" && !keys.includes(key))
+    Object.keys(prev).filter(key => !keys.includes(key))
         .forEach(key => {
+            alert(1)
             // dom.removeAttribute(key)
             if (!domNode?._listeners?.[key]) return
             domNode.removeEventListener(getListenerName(key), domNode?._listeners?.[key])

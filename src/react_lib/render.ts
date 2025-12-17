@@ -1,6 +1,6 @@
 import constants from "./constants"
 import { createListener, updateProps } from "./updateProperties"
-import { componentId, setComponent, unmountState } from "./useState"
+import { componentId, runEffectQueue, setComponent, unmountState } from "./hooks"
 
 export type component = (prop: Record<string, any>) => vnode
 
@@ -76,7 +76,7 @@ function renderComponent(node: vnode): vnode {
         var type = getTypeString(child)
 
         if (child.props.key) {
-            idGenerator.replace(child.props.key + i)
+            idGenerator.replace(type + child.props.key)
         } else {
             idGenerator.replace(type + i)
         }
@@ -95,13 +95,15 @@ function recon(node: vnode, container: HTMLElement) {
     const snapshot_new = renderComponent(node)
 
     if (!snapshot || !snapshot?.dom) {
-        snapshot = snapshot_new // uncomment to start diffing instead of full dom re-renders
         container.replaceChildren(createElement(snapshot_new))
+        snapshot = snapshot_new
+        runEffectQueue()
         return
     }
 
     commit(snapshot, snapshot_new)
     snapshot = snapshot_new
+    runEffectQueue()
 }
 
 function commit(prev: vnode, curr: vnode) {
@@ -111,13 +113,14 @@ function commit(prev: vnode, curr: vnode) {
         if (prev.id) unmountState(prev.id)
         const newDom = createElement(curr)
         prev?.dom?.replaceWith(newDom)
-        return newDom
+        return
     }
 
     // check text nodes
     if (prev.type == constants.Element_Text_NODE && prev.props.nodeValue != curr.props.nodeValue) {
         (prev.dom as Text).nodeValue = curr.props.nodeValue
-        return prev.dom!
+        curr.dom = prev.dom
+        return
     }
 
     // update props
@@ -140,6 +143,18 @@ function commit(prev: vnode, curr: vnode) {
 
         // reorder scenario
         if (prevIndex != -1) {
+            var isFocus = false
+            if (document.activeElement == deleteArr[prevIndex]?.dom) {
+                isFocus = true
+            }
+            if (i < prevIndex) {
+                prev.dom?.insertBefore(deleteArr[prevIndex]?.dom!, prev.dom.childNodes[i])
+            } else if (prev.dom?.childNodes?.length ?? -1 > i + 1) {
+                prev.dom?.insertBefore(deleteArr[prevIndex]?.dom!, prev.dom.childNodes[i + 1])
+            } else {
+                prev.dom?.appendChild(deleteArr[prevIndex]?.dom!)
+            }
+            if (isFocus) (deleteArr[prevIndex]?.dom! as HTMLElement)?.focus?.()
             commit(deleteArr.splice(prevIndex, 1, null)[0]!, currChild)
             return
         }
@@ -157,7 +172,9 @@ function commit(prev: vnode, curr: vnode) {
     })
 
     deleteArr.forEach(node => node?.id ? unmountState(node.id) : null)
-    deleteArr.map((val, i) => !val ? null : prev.dom?.childNodes[i]).forEach(child => child ? prev.dom?.removeChild(child) : null)
+    deleteArr.map((val, i) => !val ? null : prev.dom?.childNodes[i]).forEach(child => {
+        return child ? prev.dom?.removeChild(child) : null
+    })
 
 }
 
