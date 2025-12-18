@@ -14,6 +14,7 @@ interface hookSlot {
 
 
 var hookCount = 0
+var renderScheduled = false
 export var componentId: string | null = null
 var effectQueue: Array<() => void> = []
 
@@ -46,11 +47,15 @@ function useState(x: any): [any, (value: any) => void] {
     })
 
     const setter = (value: any) => {
-        queueMicrotask(() => {
-            if (typeof value == "function") value = value(globalState[id][index])
-            globalState[id][index] = { hook: 0, state: value }
-            reRender()
-        })
+        if (typeof value == "function") value = value(globalState[id][index]?.state)
+        globalState[id][index] = { hook: 0, state: value }
+        if (!renderScheduled) {
+            renderScheduled = true
+            setTimeout(() => {
+                reRender()
+                renderScheduled = false
+            }, 0)
+        }
     }
 
     return [globalState[id][index]?.state, setter]
