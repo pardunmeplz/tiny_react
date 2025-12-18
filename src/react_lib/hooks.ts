@@ -4,8 +4,9 @@ const globalState: Record<string, Array<hookSlot | null>> = {}
 
 // 0 = usestate
 // 1 = useeffect
+// 2 = useLayoutEffect
 interface hookSlot {
-    hook: 0 | 1,
+    hook: 0 | 1 | 2,
     deps?: Array<any>,
     cleanup?: void | (() => void),
     state?: any
@@ -61,9 +62,28 @@ export function useEffect(effect: () => (() => void) | void, dependency?: Array<
 
     if (globalState[id][index] == null || !dependency || globalState[id][index]?.deps?.findIndex((x: Array<any>, i: number) => dependency[i] != x) != -1) {
         effectQueue.push(() => {
+            setTimeout(() => {
+                globalState[id][index]?.cleanup?.()
+                globalState[id][index] = {
+                    hook: 1, // useeffect hook id
+                    deps: dependency,
+                    cleanup: effect()
+                }
+            }, 0)
+        })
+
+    }
+}
+
+export function useLayoutEffect(effect: () => (() => void) | void, dependency?: Array<any>): void {
+
+    const [id, index] = getGlobalState(null)
+
+    if (globalState[id][index] == null || !dependency || globalState[id][index]?.deps?.findIndex((x: Array<any>, i: number) => dependency[i] != x) != -1) {
+        effectQueue.push(() => {
             globalState[id][index]?.cleanup?.()
             globalState[id][index] = {
-                hook: 1, // useeffect hook id
+                hook: 2, // useeffect hook id
                 deps: dependency,
                 cleanup: effect()
             }
