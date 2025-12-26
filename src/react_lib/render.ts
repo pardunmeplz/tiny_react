@@ -1,6 +1,6 @@
 import constants from "./constants"
-import { createListener, updateProps } from "./updateProperties"
 import { componentId, runEffectQueue, setComponent, unmountState } from "./hooks"
+import { clearCommit, commitPhase, pushToCommit, type DomElement } from "./commits"
 
 export type component = (prop: Record<string, any>) => vnode
 
@@ -16,11 +16,6 @@ var currContainer: HTMLElement | null = null
 var currVnode: vnode | null = null
 export var currComponent: component | null = null
 
-export type DomElement = (HTMLElement | ChildNode | Text) & {
-    _handlers?: Record<string, (e: Event) => void>
-    _listeners?: Record<string, EventListener>
-}
-
 var snapshot: vnode | null = null
 
 const idGenerator = {
@@ -32,31 +27,7 @@ const idGenerator = {
     reset: function() { this.id = ["0"] }
 }
 
-function createElement(node: vnode): DomElement {
-    if (node.type == constants.Element_Text_NODE) {
-        var dom = document.createTextNode(node.props.nodeValue)
-        node.dom = dom
-        return dom
-    }
-    const element: DomElement = document.createElement(node.type as string)
-    Object.keys(node.props).forEach((key) => {
-        if (key.startsWith("on") && typeof node.props[key] == "function") {
-            // all event listners will start with on
-            createListener(element, key)
-            if (element._handlers == undefined) element._handlers = {}
-            element._handlers[key] = node.props[key]
-        } else {
-            (element as HTMLElement).setAttribute(key, node.props[key])
-        }
-    })
-
-    node.children.forEach(x => (element as HTMLElement).append(createElement(x)))
-    node.dom = element
-
-    return element
-}
-
-function renderComponent(node: vnode): vnode {
+function renderPhase(node: vnode): vnode {
 
     const parentComponent = currComponent
     const parentId = componentId
@@ -80,7 +51,7 @@ function renderComponent(node: vnode): vnode {
         } else {
             idGenerator.replace(type + i)
         }
-        return renderComponent(child)
+        return renderPhase(child)
     })
     idGenerator.dropChild()
 
@@ -91,43 +62,48 @@ function renderComponent(node: vnode): vnode {
     return node
 }
 
-function recon(node: vnode, container: HTMLElement) {
-    const snapshot_new = renderComponent(node)
+function reconciliation(node: vnode, container: HTMLElement) {
+    const snapshot_new = renderPhase(node)
+    clearCommit()
 
     if (!snapshot || !snapshot?.dom) {
-        container.replaceChildren(createElement(snapshot_new))
+        pushToCommit({ code: "createA", A: snapshot_new })
+        pushToCommit({ code: "replaceB", A: snapshot_new, B: { type: "", props: {}, children: [], dom: container } })
+        // container.replaceChildren(createElement(snapshot_new))
         snapshot = snapshot_new
+        commitPhase()
         runEffectQueue()
         return
     }
 
-    commit(snapshot, snapshot_new)
+    diffingPhase(snapshot, snapshot_new)
+    commitPhase()
     snapshot = snapshot_new
     runEffectQueue()
 }
 
-function commit(prev: vnode, curr: vnode) {
+function diffingPhase(prev: vnode, curr: vnode) {
 
     // check type
     if (prev.type != curr.type) {
         if (prev.id) unmountState(prev.id)
-        const newDom = createElement(curr)
-        prev?.dom?.replaceWith(newDom)
+        pushToCommit({ code: "createA", A: curr })
+        pushToCommit({ code: "replaceB", A: curr, B: prev })
         return
     }
 
     // check text nodes
     if (prev.type == constants.Element_Text_NODE && prev.props.nodeValue != curr.props.nodeValue) {
-        (prev.dom as Text).nodeValue = curr.props.nodeValue
-        curr.dom = prev.dom
+        pushToCommit({ code: "updateTextNodeB", B: prev, A: curr })
         return
     }
 
     // update props
-    updateProps(prev.props, curr.props, prev.dom!)
+    pushToCommit({ code: "updatePropsB", A: curr, B: prev })
 
 
-    curr.dom = prev.dom // we have confirmed this node is not re-rendered
+    // we have confirmed this node is not re-rendered
+    pushToCommit({ code: "setAasB", A: curr, B: prev })
     let deleteArr: Array<vnode | null> = [...prev.children]
 
     // todo: you need to check changes in index between old and new children and reorder dom accordingly
@@ -135,7 +111,7 @@ function commit(prev: vnode, curr: vnode) {
 
         // matching dom nodes scenario
         if (deleteArr.length > i && currChild.id == deleteArr[i]?.id) {
-            commit(deleteArr.splice(i, 1, null)[0]!, currChild)
+            diffingPhase(deleteArr.splice(i, 1, null)[0]!, currChild)
             return
         }
 
@@ -143,37 +119,31 @@ function commit(prev: vnode, curr: vnode) {
 
         // reorder scenario
         if (prevIndex != -1) {
-            var isFocus = false
-            if (document.activeElement == deleteArr[prevIndex]?.dom) {
-                isFocus = true
-            }
             if (i < prevIndex) {
-                prev.dom?.insertBefore(deleteArr[prevIndex]?.dom!, prev.dom.childNodes[i])
-            } else if (prev.dom?.childNodes?.length ?? -1 > i + 1) {
-                prev.dom?.insertBefore(deleteArr[prevIndex]?.dom!, prev.dom.childNodes[i + 1])
+                pushToCommit({ code: "insertAinB", A: deleteArr[prevIndex]!, B: prev, index: i })
+            } else if (prev.children.length ?? -1 > i + 1) {
+                pushToCommit({ code: "insertAinB", A: deleteArr[prevIndex]!, B: prev, index: i + 1 })
             } else {
-                prev.dom?.appendChild(deleteArr[prevIndex]?.dom!)
+                deleteArr[prevIndex] && pushToCommit({ code: "appendAtoB", A: deleteArr[prevIndex], B: prev })
             }
-            if (isFocus) (deleteArr[prevIndex]?.dom! as HTMLElement)?.focus?.()
-            commit(deleteArr.splice(prevIndex, 1, null)[0]!, currChild)
+            diffingPhase(deleteArr.splice(prevIndex, 1, null)[0]!, currChild)
             return
         }
 
         // new dom element mount scenario
         if (deleteArr.length <= i) {
-            const element = createElement(currChild)
-            prev.dom?.appendChild(element)
-            // deleteArr.splice(index, 0, null)
+            pushToCommit({ code: "createA", A: currChild })
+            pushToCommit({ code: "appendAtoB", A: currChild, B: prev })
             return
 
         }
 
-        commit(deleteArr.splice(i, 1, null)[0]!, currChild)
+        diffingPhase(deleteArr.splice(i, 1, null)[0]!, currChild)
     })
 
-    deleteArr.forEach(node => node?.id ? unmountState(node.id) : null)
-    deleteArr.map((val, i) => !val ? null : prev.dom?.childNodes[i]).forEach(child => {
-        return child ? prev.dom?.removeChild(child) : null
+    deleteArr.forEach(node => {
+        node?.id && unmountState(node.id)
+        node && pushToCommit({ code: "removeAfromB", A: node, B: prev })
     })
 
 }
@@ -182,8 +152,7 @@ function render(node: vnode, container: HTMLElement) {
     currContainer = container
     currVnode = node
     idGenerator.reset()
-    recon(node, container)
-    // container.replaceChildren(getElement(node))
+    reconciliation(node, container)
 }
 
 function getTypeString(node: vnode): string {
@@ -194,8 +163,7 @@ function getTypeString(node: vnode): string {
 export function reRender() {
     idGenerator.reset()
     if (!currVnode || !currContainer) return
-    // if (currVnode != null) currContianer?.replaceChildren(getElement(currVnode))
-    recon(currVnode, currContainer)
+    reconciliation(currVnode, currContainer)
 }
 
 export default render
