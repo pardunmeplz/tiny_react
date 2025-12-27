@@ -78,7 +78,6 @@ function updateListeners(prev: Record<string, any>, curr: Record<string, any>, d
     // discard deleted event handlers
     Object.keys(prev).filter(key => !keys.includes(key))
         .forEach(key => {
-            alert(1)
             // dom.removeAttribute(key)
             if (!domNode?._listeners?.[key]) return
             domNode.removeEventListener(getListenerName(key), domNode?._listeners?.[key])

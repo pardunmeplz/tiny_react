@@ -65,7 +65,7 @@ export function useEffect(effect: () => (() => void) | void, dependency?: Array<
 
     const [id, index] = getGlobalState(null)
 
-    if (globalState[id][index] == null || !dependency || globalState[id][index]?.deps?.findIndex((x: Array<any>, i: number) => dependency[i] != x) != -1) {
+    if (!globalState[id][index]?.deps || !dependency || globalState[id][index]?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
         effectQueue.push(() => {
             setTimeout(() => {
                 globalState[id][index]?.cleanup?.()

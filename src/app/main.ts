@@ -3,7 +3,7 @@ import render from '../react_lib/render'
 import useState from '../react_lib/hooks'
 import './style.css'
 
-const contianer = document.querySelector<HTMLDivElement>('#app')!
+const container = document.querySelector<HTMLDivElement>('#app')!
 
 const counter = (props: any) => {
     const [state, setState] = useState("")
@@ -23,7 +23,6 @@ render(createElement(() => {
     // const deps = [state]
 
     // useEffect(() => {
-    //     alert("hi")
     // }, deps)
     // deps.pop()
 
@@ -32,5 +31,5 @@ render(createElement(() => {
 
     return createElement("div", { onClick: () => { setState((x: any) => x - 1) } },
         ["Counter list", createElement(counter, { key: "B" }), createElement(counter), createElement(counter, { key: "A" }), state])
-}, {}), contianer)
+}, {}), container)
 

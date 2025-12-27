@@ -106,7 +106,6 @@ function diffingPhase(prev: vnode, curr: vnode) {
     pushToCommit({ code: "setAasB", A: curr, B: prev })
     let deleteArr: Array<vnode | null> = [...prev.children]
 
-    // todo: you need to check changes in index between old and new children and reorder dom accordingly
     curr.children.forEach((currChild, i) => {
 
         // matching dom nodes scenario
