@@ -1,6 +1,5 @@
-import constants from "./constants"
 import type { vnode } from "./render"
-import { createListener, updateProps } from "./updateProperties"
+import { unmountState } from "./runtime_context"
 
 export type DomElement = (HTMLElement | ChildNode | Text) & {
     _handlers?: Record<string, (e: Event) => void>
@@ -8,84 +7,133 @@ export type DomElement = (HTMLElement | ChildNode | Text) & {
 }
 
 export type OpCode = {
-    code: "createA" | "replaceB" | "appendAtoB" | "updatePropsB" | "insertAinB" | "removeAfromB" | "updateTextNodeB" | "setAasB"
-    A?: vnode
-    B?: vnode
+    code: "create" | "createText" | "replace" | "append" | "insert" | "remove" | "setCurr"
+    | "upd_prop" | "del_prop" | "add_lsnr" | "upd_lsnr" | "del_lsnr" | "upd_attr" | "del_attr"
+    | "del_state"
+
+    // vnodes 
+    // A?: vnode
+    // B?: vnode
+    curr?: vnode
+    prev?: vnode
+
+    //props
+    old?: any
+    new?: any
+    key?: string
+
+    // insert position
     index?: number
 }
 
-var commitQueue: Array<OpCode> = []
-
-export const pushToCommit = (code: OpCode) => commitQueue.push(code)
-export const clearCommit = () => commitQueue = []
-
-
-export function commitPhase() {
-    var focusElement: HTMLElement | undefined
-    commitQueue.forEach((op) => {
+export function commitPhase(ops: Array<OpCode>) {
+    var focusElement: any = document.activeElement
+    ops.forEach((op) => {
         switch (op.code) {
-            case "createA":
-                if (!op.A) throw new Error("Missing virtual node for commit!")
-                op.A.dom = createElement(op.A)
+            case "create":
+                if (!op.curr) throw new Error("Missing virtual node for commit!")
+                op.curr.dom = createElement(op.curr)
                 break
-            case "replaceB":
-                if (!op.A?.dom || !op.B?.dom) throw Error("Missing dom element for commit!")
-                op.B.dom.replaceWith(op.A.dom)
+            case "createText":
+                if (!op.curr) throw new Error("Missing virtual node for commit!")
+                op.curr.dom = createTextNode(op.curr)
                 break
-            case "appendAtoB":
+            case "replace":
+                if (!op.curr?.dom || !op.prev?.dom) throw Error("Missing dom element for commit!")
+                op.prev.dom.replaceWith(op.curr.dom)
+                break
+            case "append":
                 // adding focus check in case focused element was re-ordered
-                if (document.activeElement == op.A?.dom) focusElement = op.A?.dom as HTMLElement
+                // if (document.activeElement == op.A?.dom) focusElement = op.A?.dom as HTMLElement
 
-                if (!op.A?.dom || !op.B?.dom) throw Error("Missing dom element for commit!")
-                op.B.dom.appendChild(op.A.dom)
+                if (!op.curr?.dom || !op.prev?.dom) throw Error("Missing dom element for commit!")
+                op.prev.dom.appendChild(op.curr.dom)
                 break
-            case "updatePropsB":
-                if (!op.B?.dom) throw Error("Missing dom element for commit!")
-                updateProps(op.B.props, op.A?.props ?? {}, op.B.dom)
-                break
-            case "insertAinB":
+            case "insert":
                 // adding focus check in case focused element was re-ordered
-                if (document.activeElement == op.A?.dom) focusElement = op.A?.dom as HTMLElement
+                // if (document.activeElement == op.A?.dom) focusElement = op.A?.dom as HTMLElement
 
-                op.B?.dom?.insertBefore(op.A?.dom!, op.B?.dom?.childNodes[op.index ?? 0])
+                op.prev?.dom?.insertBefore(op.prev?.dom!, op.prev?.dom?.childNodes[op.index ?? 0])
                 break
-            case "removeAfromB":
-                if (!op.A?.dom) throw new Error("Missing dom element for commit!")
-                op.B?.dom?.removeChild(op.A?.dom)
+            case "remove":
+                if (!op.curr?.dom) throw new Error("Missing dom element for commit!")
+                op.prev?.dom?.removeChild(op.curr?.dom)
                 break
-            case "updateTextNodeB":
-                (op.B?.dom as Text).nodeValue = op.A?.props.nodeValue
-                if (op.A) op.A.dom = op.B?.dom
+            // case "updateTextNodeB":
+            //     (op.B?.dom as Text).nodeValue = op.A?.props.nodeValue
+            //     if (op.A) op.A.dom = op.B?.dom
+            //     break
+            case "setCurr":
+                if (op.curr) op.curr.dom = op.prev?.dom
                 break
-            case "setAasB":
-                if (op.A) op.A.dom = op.B?.dom
+            case "upd_prop":
+                (op.curr?.dom as any)[op.key ?? ""] = op.curr?.props[op.key ?? ""]
                 break
+            case "del_prop":
+                (op.prev?.dom as any)[op.key ?? ""] = ""
+                break
+            case "add_lsnr":
+                if (!op.curr?.dom) throw new Error("Missing dom element for commit!");
+                createListener(op.curr?.dom, op.key ?? "")
+                op.curr.dom._handlers![op.key ?? ""] = op.curr?.props?.[op.key ?? ""] as () => void
+                break
+            case "upd_lsnr":
+                if (!op.curr?.dom) throw new Error("Missing dom element for commit!");
+                op.curr.dom._handlers![op.key ?? ""] = op.curr?.props?.[op.key ?? ""] as () => void
+                break
+            case "del_lsnr":
+                if ((op.curr?.dom)?._listeners?.[op.key ?? ""]) (op.curr?.dom)?.removeEventListener(op.key ?? "", (op.curr?.dom)?._listeners?.[op.key ?? ""])
+                delete (op.curr?.dom)?._listeners?.[op.key ?? ""]
+                delete (op.curr?.dom)?._handlers?.[op.key ?? ""]
+                break
+            case "upd_attr":
+                (op.curr?.dom as HTMLElement)?.setAttribute(op.key ?? "", op.curr?.props[op.key ?? ""])
+                break
+            case "del_attr":
+                (op.curr?.dom as HTMLElement)?.removeAttribute(op.key ?? "")
+                break
+            case "del_state":
+                unmountState(op.prev?.id ?? "")
         }
     })
     focusElement?.focus?.()
 }
 
-function createElement(node: vnode): DomElement {
-    if (node.type == constants.Element_Text_NODE) {
-        var dom = document.createTextNode(node.props.nodeValue)
-        node.dom = dom
-        return dom
-    }
-    const element: DomElement = document.createElement(node.type as string)
-    Object.keys(node.props).forEach((key) => {
-        if (key.startsWith("on") && typeof node.props[key] == "function") {
-            // all event listners will start with on
-            createListener(element, key)
-            if (element._handlers == undefined) element._handlers = {}
-            element._handlers[key] = node.props[key]
-        } else {
-            (element as HTMLElement).setAttribute(key, node.props[key])
-        }
-    })
+function createTextNode(node: vnode): DomElement {
+    var dom = document.createTextNode(node.props.nodeValue)
+    node.dom = dom
+    return dom
+}
 
-    node.children.forEach(x => (element as HTMLElement).append(createElement(x)))
+function createElement(node: vnode): DomElement {
+    const element: DomElement = document.createElement(node.type as string)
     node.dom = element
 
     return element
+}
+
+
+export function createListener(dom: DomElement, key: string) {
+    if (!dom._listeners) dom._listeners = {}
+    if (!dom._handlers) dom._handlers = {}
+    if (dom._listeners[key]) return
+
+    const realListener = function(this: DomElement, event: Event) {
+        const handler = (this)._handlers?.[key]
+        if (handler) handler(event)
+    }
+
+    dom._listeners[key] = realListener
+
+    dom.addEventListener(getListenerName(key), realListener)
+
+}
+
+function getListenerName(key: string) {
+    const keyToDomMap: Record<string, string> = {
+        onBlur: "change",
+        onChange: "input"
+    }
+    return keyToDomMap[key] ?? key.toLowerCase().substring(2)
 }
 

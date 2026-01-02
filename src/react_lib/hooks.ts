@@ -1,79 +1,47 @@
-import { reRender } from "./render";
-
-const globalState: Record<string, Array<hookSlot | null>> = {}
+import { reconciliation } from "./render";
+import { currentRoot, getHookIndex, getHookSlot, setHookSlot } from "./runtime_context";
 
 // 0 = usestate
 // 1 = useeffect
 // 2 = useLayoutEffect
-interface hookSlot {
+export interface hookSlot {
     hook: 0 | 1 | 2,
     deps?: Array<any>,
     cleanup?: void | (() => void),
     state?: any
 }
 
+export function useState(x: any): [any, (value: any) => void] {
 
-var hookCount = 0
-var renderScheduled = false
-export var componentId: string | null = null
-var effectQueue: Array<() => void> = []
-
-function getGlobalState(x: hookSlot | null): [string, number] {
-    if (componentId == null) throw Error("Hooks can only be used inside a component")
-    const id = componentId
-    const index = hookCount++
-
-    // add missing component entry
-    if (!Object.hasOwn(globalState, id)) {
-        globalState[id] = []
-    }
-
-    // add missing state entry
-    if (globalState[id].length <= index) {
-        globalState[id].push(x)
-    }
-
-    // doesnt cover all cases ofc but a good error that can cover several cases of hook misuse for now
-    if (globalState[id][index]?.hook && (x?.hook != globalState[id][index]?.hook)) throw Error("Hooks can not be called conditionally")
-
-    return [id, index]
-}
-
-function useState(x: any): [any, (value: any) => void] {
-
-    const [id, index] = getGlobalState({
-        hook: 0,
-        state: x
-    })
+    const id = getHookIndex({ hook: 0, state: x })
 
     const setter = (value: any) => {
-        if (typeof value == "function") value = value(globalState[id][index]?.state)
-        globalState[id][index] = { hook: 0, state: value }
-        if (!renderScheduled) {
-            renderScheduled = true
+        if (typeof value == "function") value = value(getHookSlot(id)?.state)
+        setHookSlot(id, { hook: 0, state: value })
+        if (!currentRoot.renderScheduled) {
+            currentRoot.renderScheduled = true
             setTimeout(() => {
-                reRender()
-                renderScheduled = false
+                reconciliation(currentRoot)
             }, 0)
         }
     }
 
-    return [globalState[id][index]?.state, setter]
+    return [getHookSlot(id)?.state, setter]
 }
 
 export function useEffect(effect: () => (() => void) | void, dependency?: Array<any>): void {
 
-    const [id, index] = getGlobalState(null)
+    const id = getHookIndex({ hook: 1 })
 
-    if (!globalState[id][index]?.deps || !dependency || globalState[id][index]?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
-        effectQueue.push(() => {
+    if (!getHookSlot(id)?.deps || !dependency || getHookSlot(id)?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
+        currentRoot.effectQueue.push(() => {
             setTimeout(() => {
-                globalState[id][index]?.cleanup?.()
-                globalState[id][index] = {
-                    hook: 1, // useeffect hook id
+                getHookSlot(id)?.cleanup?.()
+                setHookSlot(id, {
+                    hook: 1,
                     deps: dependency,
                     cleanup: effect()
-                }
+                })
             }, 0)
         })
 
@@ -82,36 +50,17 @@ export function useEffect(effect: () => (() => void) | void, dependency?: Array<
 
 export function useLayoutEffect(effect: () => (() => void) | void, dependency?: Array<any>): void {
 
-    const [id, index] = getGlobalState(null)
+    const id = getHookIndex(null)
 
-    if (globalState[id][index] == null || !dependency || globalState[id][index]?.deps?.findIndex((x: Array<any>, i: number) => dependency[i] != x) != -1) {
-        effectQueue.push(() => {
-            globalState[id][index]?.cleanup?.()
-            globalState[id][index] = {
-                hook: 2, // useeffect hook id
+    if (getHookSlot(id) == null || !dependency || getHookSlot(id)?.deps?.findIndex((x: Array<any>, i: number) => dependency[i] != x) != -1) {
+        currentRoot.effectQueue.push(() => {
+            getHookSlot(id)?.cleanup?.()
+            setHookSlot(id, {
+                hook: 2,
                 deps: dependency,
                 cleanup: effect()
-            }
+            })
         })
 
     }
-}
-
-export default useState
-
-// renderer will call this when starting any new component
-export function setComponent(id: string) {
-    hookCount = 0
-    componentId = id
-}
-
-export function runEffectQueue() {
-    while (effectQueue.length) effectQueue.shift()?.()
-}
-
-export function unmountState(componentId: string) {
-    globalState[componentId].forEach(x => {
-        if (x?.hook == 1 && x?.cleanup) effectQueue.push(() => x?.cleanup?.())
-    })
-    delete globalState[componentId]
 }
