@@ -43,26 +43,16 @@ export function commitPhase(ops: Array<OpCode>) {
                 op.prev.dom.replaceWith(op.curr.dom)
                 break
             case "append":
-                // adding focus check in case focused element was re-ordered
-                // if (document.activeElement == op.A?.dom) focusElement = op.A?.dom as HTMLElement
-
                 if (!op.curr?.dom || !op.prev?.dom) throw Error("Missing dom element for commit!")
                 op.prev.dom.appendChild(op.curr.dom)
                 break
             case "insert":
-                // adding focus check in case focused element was re-ordered
-                // if (document.activeElement == op.A?.dom) focusElement = op.A?.dom as HTMLElement
-
-                op.prev?.dom?.insertBefore(op.prev?.dom!, op.prev?.dom?.childNodes[op.index ?? 0])
+                op.prev?.dom?.insertBefore(op.curr?.dom!, op.prev?.dom?.childNodes[op.index ?? 0])
                 break
             case "remove":
                 if (!op.curr?.dom) throw new Error("Missing dom element for commit!")
                 op.prev?.dom?.removeChild(op.curr?.dom)
                 break
-            // case "updateTextNodeB":
-            //     (op.B?.dom as Text).nodeValue = op.A?.props.nodeValue
-            //     if (op.A) op.A.dom = op.B?.dom
-            //     break
             case "setCurr":
                 if (op.curr) op.curr.dom = op.prev?.dom
                 break

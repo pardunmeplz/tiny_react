@@ -29,15 +29,9 @@ export default function createRoot(container: HTMLElement) {
             root.componentTree = node
             root.snapshot = render(root)
 
-            // no diff needed for first render
             const placeholder = document.createElement("div")
             container.append(placeholder)
             const commitQueue = diffingPhase({ type: "", props: {}, children: [], dom: placeholder }, root.snapshot)
-            console.log(commitQueue)
-            // const commitQueue: Array<OpCode> = []
-            // commitQueue.push({ code: "create", curr: root.snapshot! })
-            // commitQueue.push({ code: "replace", curr: root.snapshot!, prev: { type: "", props: {}, children: [], dom: container } })
-            // commitQueue.push(...propsDiff({ type: "", props: {}, children: [] }, root.snapshot))
             commitPhase(commitQueue)
 
             runEffectQueue(root)

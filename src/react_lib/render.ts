@@ -63,8 +63,8 @@ export function reconciliation(root: Root) {
     setRoot(root)
     currentRoot.renderScheduled = false
     const snapshot_new = render(root)
-
-    commitPhase(diffingPhase(root.snapshot, snapshot_new))
+    const commitQueue = diffingPhase(root.snapshot, snapshot_new)
+    commitPhase(commitQueue)
     root.snapshot = snapshot_new
     runEffectQueue(root)
 }
@@ -84,15 +84,16 @@ export function diffingPhase(prev: vnode, curr: vnode): Array<OpCode> {
 
     // check text nodes
     if (prev.type == constants.Element_Text_NODE && prev.props.nodeValue != curr.props.nodeValue) {
-        out.push({ code: "upd_prop", key: "nodeValue", curr })//pushToCommit({ code: "updateTextNodeB", B: prev, A: curr })
+        out.push({ code: "setCurr", prev, curr }) // reuse same text node
+        out.push({ code: "upd_prop", key: "nodeValue", curr })// update node value
         return out
     }
 
-    // update props
-    out.push(...propsDiff(prev, curr))// pushToCommit({ code: "updatePropsB", A: curr, B: prev })
-
     // we have confirmed this node is not re-rendered
     out.push({ code: "setCurr", prev, curr })//pushToCommit({ code: "setAasB", A: curr, B: prev })
+
+    // update props
+    out.push(...propsDiff(prev, curr))// pushToCommit({ code: "updatePropsB", A: curr, B: prev })
 
     out.push(...diffChildren(prev, curr))
 
@@ -107,7 +108,7 @@ function diffChildren(prev: vnode, curr: vnode): Array<OpCode> {
 
         // matching dom nodes scenario
         if (deleteArr.length > i && currChild.id == deleteArr[i]?.id) {
-            diffingPhase(deleteArr.splice(i, 1, null)[0]!, currChild)
+            out.push(...diffingPhase(deleteArr.splice(i, 1, null)[0]!, currChild))
             return
         }
 
@@ -116,13 +117,13 @@ function diffChildren(prev: vnode, curr: vnode): Array<OpCode> {
         // reorder scenario
         if (prevIndex != -1) {
             if (i < prevIndex) {
-                out.push({ code: "insert", curr: deleteArr[prevIndex]!, prev, index: i })//pushToCommit({ code: "insertAinB", A: deleteArr[prevIndex]!, B: prev, index: i })
+                out.push({ code: "insert", curr: deleteArr[prevIndex]!, prev: curr, index: i })//pushToCommit({ code: "insertAinB", A: deleteArr[prevIndex]!, B: prev, index: i })
             } else if (prev.children.length ?? -1 > i + 1) {
-                out.push({ code: "insert", curr: deleteArr[prevIndex]!, prev, index: i + 1 })//pushToCommit({ code: "insertAinB", A: deleteArr[prevIndex]!, B: prev, index: i + 1 })
+                out.push({ code: "insert", curr: deleteArr[prevIndex]!, prev: curr, index: i + 1 })//pushToCommit({ code: "insertAinB", A: deleteArr[prevIndex]!, B: prev, index: i + 1 })
             } else {
                 deleteArr[prevIndex] && out.push({ code: "append", curr: deleteArr[prevIndex], prev })//pushToCommit({ code: "appendAtoB", A: deleteArr[prevIndex], B: prev })
             }
-            diffingPhase(deleteArr.splice(prevIndex, 1, null)[0]!, currChild)
+            out.push(...diffingPhase(deleteArr.splice(prevIndex, 1, null)[0]!, currChild))
             return
         }
 
@@ -135,7 +136,7 @@ function diffChildren(prev: vnode, curr: vnode): Array<OpCode> {
 
         }
 
-        diffingPhase(deleteArr.splice(i, 1, null)[0]!, currChild)
+        out.push(...diffingPhase(deleteArr.splice(i, 1, null)[0]!, currChild))
     })
 
     deleteArr.forEach(node => {
