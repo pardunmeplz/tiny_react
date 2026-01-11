@@ -56,10 +56,11 @@ function beginWork(unit: fiberNode) {
 }
 
 function completeWork(unit: fiberNode) {
-    let curr = unit.child
-    while (curr) {
+    let i = 0;
+    for (let curr = unit.child; curr; curr = curr.sibling) {
         unit.effects.push(...curr.effects)
-        curr = curr.sibling
+        i++
+        if (i > curr.index) unit.effects.push({ code: "insert", index: i, curr: curr.node, prev: unit.node })
     }
     unit?.boundaryContext?.endBoundary()
 }
