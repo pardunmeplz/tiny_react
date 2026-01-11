@@ -4,8 +4,9 @@ import type { Root } from "./root"
 import { setRoot } from "./runtime_context"
 
 const channel = new MessageChannel
-const scheduled: Array<any> = []
-const timesliceMs = 0.1
+const scheduled: any = {}
+let counter = 0
+const timesliceMs = 5
 
 channel.port1.onmessage = function workloop({ data: id }) {
     if (!scheduled[id]) return
@@ -20,21 +21,21 @@ channel.port1.onmessage = function workloop({ data: id }) {
 
     var deadline = performance.now() + timesliceMs
     while (fiber && renderVersion == root.renderVersion) {
-        fiber = performUnitOfWork(fiber)
-
         // yield to browser since timeslice ended
         if (deadline < performance.now() && fiber) {
             scheduleWork(fiber, root, renderVersion, renderRootFiber)
             return
         }
+
+        fiber = performUnitOfWork(fiber)
     }
     if (renderVersion != root.renderVersion) return
     endReconciliation(renderRootFiber, root)
 }
 
 function scheduleWork(fiber: fiberNode, root: Root, renderVersion: number, renderRootFiber: fiberNode) {
-    scheduled.push({ fiber, root, renderVersion, renderRootFiber })
-    channel.port2.postMessage(scheduled.length - 1)
+    scheduled[++counter] = ({ fiber, root, renderVersion, renderRootFiber })
+    channel.port2.postMessage(counter)
 }
 
 export function scheduleRender(root: Root) {

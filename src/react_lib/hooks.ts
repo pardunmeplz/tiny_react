@@ -29,7 +29,7 @@ export function useEffect(effect: () => (() => void) | void, dependency?: Array<
     const [getSlot, setSlot] = getHookState({ hook: 1 })
 
     if (!getSlot()?.deps || !dependency || getSlot()?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
-        currentRoot.effectQueue.push(() => {
+        currentRoot.currentFiber?.effects.push(() => {
             setTimeout(() => {
                 getSlot()?.cleanup?.()
                 setSlot({
@@ -48,7 +48,7 @@ export function useLayoutEffect(effect: () => (() => void) | void, dependency?: 
     const [getSlot, setSlot] = getHookState(undefined)
 
     if (!getSlot() || !dependency || getSlot()?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
-        currentRoot.effectQueue.push(() => {
+        currentRoot.currentFiber?.effects.push(() => {
             getSlot()?.cleanup?.()
             setSlot({
                 hook: 2,

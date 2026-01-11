@@ -10,7 +10,8 @@ export interface fiberNode {
     parent?: fiberNode
     child?: fiberNode
     sibling?: fiberNode
-    effects: Array<OpCode>
+    commits: Array<OpCode>
+    effects: Array<() => void>
     index: number
     id?: string
     boundaryContext?: componentBoundaryContext
@@ -43,8 +44,9 @@ function beginWork(unit: fiberNode) {
 
 function completeWork(unit: fiberNode) {
     for (let curr = unit.child; curr; curr = curr.sibling) {
+        unit.commits.push(...curr.commits)
         unit.effects.push(...curr.effects)
-        if (curr.index != curr.alternate?.index) unit.effects.push({ code: "insert", index: curr.index, curr: curr.node, prev: unit.node })
+        if (curr.index != curr.alternate?.index) unit.commits.push({ code: "insert", index: curr.index, curr: curr.node, prev: unit.node })
     }
     unit?.boundaryContext?.endBoundary()
 }
@@ -76,6 +78,7 @@ function makeChildFibers(unit: fiberNode) {
             parent: unit,
             node: child,
             alternate,
+            commits: [],
             effects: [],
             index: i,
             id
@@ -85,15 +88,17 @@ function makeChildFibers(unit: fiberNode) {
         prevNode = fiber
     })
     alternates.forEach(node => {
-        unit.effects.push({ code: "remove", curr: node.node, prev: unit.alternate?.node })
+        unit.commits.push({ code: "remove", curr: node.node, prev: unit.alternate?.node })
     })
 }
+
 
 export function makeRootFiber(root: Root): fiberNode {
     return {
         phase: 0,
         node: root.componentTree!,
         alternate: root.rootFiber,
+        commits: [],
         effects: [],
         index: 0,
         id: "0." + getTypeString(root.componentTree!) + ".0"

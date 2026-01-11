@@ -1,6 +1,6 @@
 import constants from "./constants"
 import { commitPhase, type DomElement } from "./commits"
-import { runEffectQueue, type Root } from "./root"
+import { type Root } from "./root"
 import { currentRoot, newComponentBoundary } from "./runtime_context"
 import { propsDiff } from "./updateProperties"
 import { type fiberNode } from "./fiber"
@@ -26,7 +26,7 @@ export function evaluate(unit: fiberNode) {
 }
 
 export function diff(unit: fiberNode): void {
-    const out = unit.effects
+    const out = unit.commits
     const prev = unit.alternate?.node
     const curr = unit.node
 
@@ -61,11 +61,12 @@ export function diff(unit: fiberNode): void {
     out.push(...propsDiff(prev, curr))// pushToCommit({ code: "updatePropsB", A: curr, B: prev })
 }
 
+const runEffectQueue = (fiber: fiberNode) => { while (fiber.effects.length) fiber.effects.shift()?.() }
 
 export function endReconciliation(unit: fiberNode, root: Root) {
-    commitPhase(unit.effects)
+    commitPhase(unit.commits)
     root.snapshot = unit.node
     root.rootFiber = unit
-    runEffectQueue(root)
+    runEffectQueue(unit)
     currentRoot.renderScheduled = 0
 }
