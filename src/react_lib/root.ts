@@ -1,25 +1,29 @@
-import { commitPhase } from "./commits"
+// import { commitPhase } from "./commits"
+import type { fiberNode } from "./fiber"
 import { type hookSlot } from "./hooks"
-import { diffingPhase, render, type vnode } from "./render"
+import { beginReconciliation, type vnode } from "./render"
 import { setRoot } from "./runtime_context"
 
 export interface Root {
-
+    componentId: string
+    hookCount: number
     hookState: Record<string, Array<hookSlot | null>>
     renderScheduled: boolean
-    componentTree: vnode | null
+    componentTree?: vnode
     snapshot: vnode | null
     effectQueue: Array<() => void>
+    fiber?: fiberNode
 }
 
 export const runEffectQueue = (root: Root) => { while (root.effectQueue.length) root.effectQueue.shift()?.() }
 
 export default function createRoot(container: HTMLElement) {
     const root: Root = {
+        componentId: "",
+        hookCount: 0,
         hookState: {},
         renderScheduled: false,
         snapshot: null,
-        componentTree: null,
         effectQueue: [],
     }
 
@@ -27,14 +31,19 @@ export default function createRoot(container: HTMLElement) {
         render: (node: vnode) => {
             setRoot(root)
             root.componentTree = node
-            root.snapshot = render(root)
 
             const placeholder = document.createElement("div")
             container.append(placeholder)
-            const commitQueue = diffingPhase({ type: "", props: {}, children: [], dom: placeholder }, root.snapshot)
-            commitPhase(commitQueue)
+            root.fiber = { phase: 2, node: { type: "", props: {}, children: [], dom: placeholder }, index: 0, effects: [] }
 
-            runEffectQueue(root)
+            // root.snapshot = render(root)
+            beginReconciliation(root)
+
+
+            // const commitQueue = diffingPhase(, root.snapshot)
+            // commitPhase(commitQueue)
+
+            // runEffectQueue(root)
         }
     }
 }

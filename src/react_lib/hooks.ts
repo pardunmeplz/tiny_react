@@ -1,4 +1,4 @@
-import { reconciliation } from "./render";
+import { beginReconciliation } from "./render";
 import { currentRoot, getHookIndex, getHookSlot, setHookSlot } from "./runtime_context";
 
 // 0 = usestate
@@ -21,7 +21,8 @@ export function useState(x: any): [any, (value: any) => void] {
         if (!currentRoot.renderScheduled) {
             currentRoot.renderScheduled = true
             setTimeout(() => {
-                reconciliation(currentRoot)
+                // reconciliation(currentRoot)
+                beginReconciliation(currentRoot)
             }, 0)
         }
     }
@@ -52,7 +53,7 @@ export function useLayoutEffect(effect: () => (() => void) | void, dependency?: 
 
     const id = getHookIndex(null)
 
-    if (getHookSlot(id) == null || !dependency || getHookSlot(id)?.deps?.findIndex((x: Array<any>, i: number) => dependency[i] != x) != -1) {
+    if (getHookSlot(id) == null || !dependency || getHookSlot(id)?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
         currentRoot.effectQueue.push(() => {
             getHookSlot(id)?.cleanup?.()
             setHookSlot(id, {

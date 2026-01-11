@@ -2,28 +2,30 @@ import type { hookSlot } from "./hooks";
 import type { Root } from "./root";
 
 export var currentRoot: Root
-var componentId: string
-var hookCount: number
 
 export const setHookSlot = ([componentId, hookIndex]: [string, number], slot: hookSlot) => currentRoot.hookState[componentId][hookIndex] = slot
 export const getHookSlot = ([componentId, hookIndex]: [string, number]) => currentRoot.hookState[componentId][hookIndex]
 export const setRoot = (root: Root) => {
     currentRoot = root
-    componentId = ""
-    hookCount = 0
+    currentRoot.componentId = ""
+    currentRoot.hookCount = 0
 }
 
 export function setComponent(id: string) {
-    hookCount = 0
-    componentId = id
+    currentRoot.hookCount = 0
+    currentRoot.componentId = id
 }
 
-export function newComponentBoundary(id: string) {
-    const oldId = componentId
-    const oldCount = hookCount
-    componentId = id
-    hookCount = 0
-    return { endBoundary: () => { componentId = oldId; hookCount = oldCount } }
+export interface componentBoundaryContext {
+    endBoundary: Function
+}
+
+export function newComponentBoundary(id: string): componentBoundaryContext {
+    const oldId = currentRoot.componentId
+    const oldCount = currentRoot.hookCount
+    currentRoot.componentId = id
+    currentRoot.hookCount = 0
+    return { endBoundary: () => { currentRoot.componentId = oldId; currentRoot.hookCount = oldCount } }
 }
 
 export function unmountState(componentId: string) {
@@ -34,9 +36,9 @@ export function unmountState(componentId: string) {
 }
 
 export function getHookIndex(x: hookSlot | null): [string, number] {
-    if (componentId == null) throw Error("Hooks can only be used inside a component")
-    const id = componentId
-    const index = hookCount++
+    if (currentRoot.componentId == null) throw Error("Hooks can only be used inside a component")
+    const id = currentRoot.componentId
+    const index = currentRoot.hookCount++
 
     // add missing component entry
     if (!Object.hasOwn(currentRoot.hookState, id)) {

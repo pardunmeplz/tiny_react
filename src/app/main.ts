@@ -25,6 +25,6 @@ createRoot(container).render(createElement(() => {
         ["Counter list", createElement(counter, { key: "A", updateCount: () => setState((x: number) => x + 1) }), createElement(counter), createElement(counter, { key: "B", updateCount: () => setState((x: number) => x - 1) }), state])
 
     return createElement("div", { onClick: () => { setState((x: any) => x - 1) } },
-        ["Counter list", createElement(counter, { key: "B" }), createElement(counter), createElement(counter, { key: "A" }), state])
+        ["Counter list", createElement(counter, { key: "B" }), createElement(counter, { key: "A" }), state])
 }, {}))
 

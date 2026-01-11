@@ -24,6 +24,9 @@ export type OpCode = {
 
     // insert position
     index?: number
+
+    // hook state id
+    id?: string
 }
 
 export function commitPhase(ops: Array<OpCode>) {
@@ -83,7 +86,7 @@ export function commitPhase(ops: Array<OpCode>) {
                 (op.curr?.dom as HTMLElement)?.removeAttribute(op.key ?? "")
                 break
             case "del_state":
-                unmountState(op.prev?.id ?? "")
+                unmountState(op.id ?? "")
         }
     })
     focusElement?.focus?.()
