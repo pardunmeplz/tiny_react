@@ -16,6 +16,7 @@ export function useState(x: any): [any, (value: any) => void] {
     const [getSlot, setSlot] = getHookState({ hook: 0, state: x })
 
     const setter = (value: any) => {
+
         if (typeof value == "function") value = value(getSlot()?.state)
         setSlot({ hook: 0, state: value })
         scheduleRender(currentRoot)

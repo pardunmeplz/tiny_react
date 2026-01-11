@@ -1,5 +1,5 @@
 import { createElement } from '../react_lib/createElement'
-import { useState } from '../react_lib/hooks'
+import { useEffect, useState } from '../react_lib/hooks'
 import createRoot from '../react_lib/root'
 import './style.css'
 
@@ -20,6 +20,10 @@ const counter = (props: any) => {
 createRoot(container).render(createElement(() => {
 
     const [state, setState] = useState(20)
+
+    useEffect(() => {
+        if (state == 50) alert(state)
+    }, [state])
 
     if (state > 0) return createElement("div", {},
         ["Counter list", createElement(counter, { key: "A", updateCount: () => setState((x: number) => x + 1) }), createElement(counter), createElement(counter, { key: "B", updateCount: () => setState((x: number) => x - 1) }), state])

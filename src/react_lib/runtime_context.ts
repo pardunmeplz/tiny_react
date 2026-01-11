@@ -27,16 +27,9 @@ export function newComponentBoundary(fiber: fiberNode): componentBoundaryContext
     return { endBoundary: () => { currentRoot.currentFiber = oldFiber; currentRoot.hookCount = oldCount } }
 }
 
-export function unmountState(fiber: fiberNode) {
-    currentRoot.hookState.get(fiber)?.forEach(x => {
-        if ([1, 2].includes(x?.hook ?? -1) && x?.cleanup) currentRoot.effectQueue.push(() => x?.cleanup?.())
-    })
-    currentRoot.hookState.delete(fiber)
-}
-
 export function getHookState(x: hookSlot | undefined): [() => hookSlot | undefined, Function] {
     const fiber = currentRoot.currentFiber
-    const index = currentRoot.hookCount
+    const index = currentRoot.hookCount++
     if (!fiber) throw Error("Hooks can only be used inside a component")
 
     // transfer hook state from previous fiber
