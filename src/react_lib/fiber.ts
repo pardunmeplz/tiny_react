@@ -57,11 +57,9 @@ function beginWork(unit: fiberNode) {
 }
 
 function completeWork(unit: fiberNode) {
-    let i = 0;
     for (let curr = unit.child; curr; curr = curr.sibling) {
         unit.effects.push(...curr.effects)
-        i++
-        if (i > curr.index) unit.effects.push({ code: "insert", index: i, curr: curr.node, prev: unit.node })
+        if (curr.index != curr.alternate?.index) unit.effects.push({ code: "insert", index: curr.index, curr: curr.node, prev: unit.node })
     }
     unit?.boundaryContext?.endBoundary()
 }

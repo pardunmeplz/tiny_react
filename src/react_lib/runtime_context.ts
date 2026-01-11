@@ -41,7 +41,7 @@ export function getHookState(x: hookSlot | undefined): [() => hookSlot | undefin
 
     // transfer hook state from previous fiber
     if (!currentRoot.hookState.has(fiber) && fiber.alternate && currentRoot.hookState.has(fiber.alternate)) {
-        currentRoot.hookState.set(fiber, currentRoot.hookState.get(fiber.alternate)!)
+        currentRoot.hookState.set(fiber, [...currentRoot.hookState.get(fiber.alternate)!])
     } else if (!currentRoot.hookState.has(fiber)) {
         currentRoot.hookState.set(fiber, [])
     }
