@@ -31,6 +31,7 @@ export default function createRoot(container: HTMLElement) {
         render: (node: vnode) => {
             setRoot(root)
             root.componentTree = node
+            console.log("nodes", node)
 
             const placeholder = document.createElement("div")
             container.append(placeholder)
