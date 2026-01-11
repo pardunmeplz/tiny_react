@@ -1,8 +1,7 @@
 import type { OpCode } from "./commits";
-import { diff, endReconciliation, evaluate, type vnode } from "./render";
+import { diff, evaluate, type vnode } from "./render";
 import type { Root } from "./root";
 import type { componentBoundaryContext } from "./runtime_context";
-
 
 export interface fiberNode {
     phase: 0 | 1 | 2 // todo / begun / finished
@@ -15,15 +14,6 @@ export interface fiberNode {
     index: number
     id?: string
     boundaryContext?: componentBoundaryContext
-}
-
-export function workloop(fiber: fiberNode, root: Root, renderVersion: number) {
-    let curr: fiberNode | undefined = fiber
-    while (curr && renderVersion == root.renderVersion) {
-        curr = performUnitOfWork(curr)
-    }
-    if (renderVersion != root.renderVersion) return
-    endReconciliation(fiber, root)
 }
 
 // returns next unit of work

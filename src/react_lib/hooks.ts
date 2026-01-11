@@ -1,5 +1,5 @@
-import { beginReconciliation } from "./render";
 import { currentRoot, getHookState, } from "./runtime_context";
+import { scheduleRender } from "./scheduling";
 
 // 0 = usestate
 // 1 = useeffect
@@ -18,13 +18,7 @@ export function useState(x: any): [any, (value: any) => void] {
     const setter = (value: any) => {
         if (typeof value == "function") value = value(getSlot()?.state)
         setSlot({ hook: 0, state: value })
-        if (!currentRoot.renderScheduled) {
-            currentRoot.renderScheduled = true
-            setTimeout(() => {
-                // reconciliation(currentRoot)
-                beginReconciliation(currentRoot)
-            }, 0)
-        }
+        scheduleRender(currentRoot)
     }
 
     return [getSlot()?.state, setter]
