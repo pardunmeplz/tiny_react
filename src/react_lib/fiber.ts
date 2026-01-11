@@ -19,11 +19,6 @@ export interface fiberNode {
 
 export function workloop(fiber: fiberNode, root: Root, renderVersion: number) {
     let curr: fiberNode | undefined = fiber
-    // this is the cursor traversal, currently with no yielding
-    // but now instead of an uninteruptable stack recursion, we can yield
-    // at any point, storing the cursor value in some schedular object before yield
-    // and then later continue from where we left off with the next unit of work 
-    // using the cursor
     while (curr && renderVersion == root.renderVersion) {
         curr = performUnitOfWork(curr)
     }
