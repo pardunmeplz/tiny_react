@@ -1,5 +1,5 @@
+import type { fiberNode } from "./fiber"
 import type { vnode } from "./render"
-import { unmountState } from "./runtime_context"
 
 export type DomElement = (HTMLElement | ChildNode | Text) & {
     _handlers?: Record<string, (e: Event) => void>
@@ -9,7 +9,6 @@ export type DomElement = (HTMLElement | ChildNode | Text) & {
 export type OpCode = {
     code: "create" | "createText" | "replace" | "append" | "insert" | "remove" | "setCurr"
     | "upd_prop" | "del_prop" | "add_lsnr" | "upd_lsnr" | "del_lsnr" | "upd_attr" | "del_attr"
-    | "del_state"
 
     // vnodes 
     // A?: vnode
@@ -26,7 +25,7 @@ export type OpCode = {
     index?: number
 
     // hook state id
-    id?: string
+    fiber?: fiberNode
 }
 
 export function commitPhase(ops: Array<OpCode>) {
@@ -85,8 +84,6 @@ export function commitPhase(ops: Array<OpCode>) {
             case "del_attr":
                 (op.curr?.dom as HTMLElement)?.removeAttribute(op.key ?? "")
                 break
-            case "del_state":
-                unmountState(op.id ?? "")
         }
     })
     focusElement?.focus?.()

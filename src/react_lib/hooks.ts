@@ -1,5 +1,5 @@
 import { beginReconciliation } from "./render";
-import { currentRoot, getHookIndex, getHookSlot, setHookSlot } from "./runtime_context";
+import { currentRoot, getHookState, } from "./runtime_context";
 
 // 0 = usestate
 // 1 = useeffect
@@ -13,11 +13,11 @@ export interface hookSlot {
 
 export function useState(x: any): [any, (value: any) => void] {
 
-    const id = getHookIndex({ hook: 0, state: x })
+    const [getSlot, setSlot] = getHookState({ hook: 0, state: x })
 
     const setter = (value: any) => {
-        if (typeof value == "function") value = value(getHookSlot(id)?.state)
-        setHookSlot(id, { hook: 0, state: value })
+        if (typeof value == "function") value = value(getSlot()?.state)
+        setSlot({ hook: 0, state: value })
         if (!currentRoot.renderScheduled) {
             currentRoot.renderScheduled = true
             setTimeout(() => {
@@ -27,18 +27,18 @@ export function useState(x: any): [any, (value: any) => void] {
         }
     }
 
-    return [getHookSlot(id)?.state, setter]
+    return [getSlot()?.state, setter]
 }
 
 export function useEffect(effect: () => (() => void) | void, dependency?: Array<any>): void {
 
-    const id = getHookIndex({ hook: 1 })
+    const [getSlot, setSlot] = getHookState({ hook: 1 })
 
-    if (!getHookSlot(id)?.deps || !dependency || getHookSlot(id)?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
+    if (!getSlot()?.deps || !dependency || getSlot()?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
         currentRoot.effectQueue.push(() => {
             setTimeout(() => {
-                getHookSlot(id)?.cleanup?.()
-                setHookSlot(id, {
+                getSlot()?.cleanup?.()
+                setSlot({
                     hook: 1,
                     deps: dependency,
                     cleanup: effect()
@@ -51,12 +51,12 @@ export function useEffect(effect: () => (() => void) | void, dependency?: Array<
 
 export function useLayoutEffect(effect: () => (() => void) | void, dependency?: Array<any>): void {
 
-    const id = getHookIndex(null)
+    const [getSlot, setSlot] = getHookState(undefined)
 
-    if (getHookSlot(id) == null || !dependency || getHookSlot(id)?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
+    if (!getSlot() || !dependency || getSlot()?.deps?.some((x: Array<any>, i: number) => dependency[i] != x)) {
         currentRoot.effectQueue.push(() => {
-            getHookSlot(id)?.cleanup?.()
-            setHookSlot(id, {
+            getSlot()?.cleanup?.()
+            setSlot({
                 hook: 2,
                 deps: dependency,
                 cleanup: effect()

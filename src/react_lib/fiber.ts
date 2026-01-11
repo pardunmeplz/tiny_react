@@ -17,16 +17,17 @@ export interface fiberNode {
     boundaryContext?: componentBoundaryContext
 }
 
-export function workloop(fiber: fiberNode, root: Root) {
+export function workloop(fiber: fiberNode, root: Root, renderVersion: number) {
     let curr: fiberNode | undefined = fiber
     // this is the cursor traversal, currently with no yielding
     // but now instead of an uninteruptable stack recursion, we can yield
     // at any point, storing the cursor value in some schedular object before yield
     // and then later continue from where we left off with the next unit of work 
     // using the cursor
-    while (curr) {
+    while (curr && renderVersion == root.renderVersion) {
         curr = performUnitOfWork(curr)
     }
+    if (renderVersion != root.renderVersion) return
     endReconciliation(fiber, root)
 }
 
@@ -109,7 +110,7 @@ export function makeRootFiber(root: Root): fiberNode {
     return {
         phase: 0,
         node: root.componentTree!,
-        alternate: root.fiber,
+        alternate: root.rootFiber,
         effects: [],
         index: 0,
         id: "0." + getTypeString(root.componentTree!) + ".0"
