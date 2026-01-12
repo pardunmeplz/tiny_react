@@ -1,6 +1,6 @@
 # Tiny React
 
-A minimal React-like library built from scratch in TypeScript, implementing React's core concepts including Fiber architecture, hooks, and concurrent rendering foundations.
+A minimal React-like library built from scratch in TypeScript, implementing React's core concepts including Fiber architecture, hooks, and concurrent rendering foundations with basic time-slicing.
 
 The project is a study to understand React's inner workings, building incrementally from basic rendering to Fiber-based concurrent mode.
 
@@ -36,15 +36,15 @@ The project is a study to understand React's inner workings, building incrementa
 
 ---
 
-## Architecture Overview
-
-### Fiber Nodes
-Each component/element is represented as a Fiber node with:
+### Fiber Node Model
+The architecture aims to implement cursor based traversal over the component tree rather than using recursion in order to have more flexible control flow enabling concurrent mode behaviors.
+Each Fiber represents a unit of work and contains:
 - `node`: Virtual DOM node
-- `alternate`: Previous Fiber for reconciliation
+- `alternate`: Previous Fiber (for reconciliation)
 - `parent`, `child`, `sibling`: Linked list structure
 - `phase`: Work state (0=todo, 1=begun, 2=finished)
-- `effects`: DOM operations to commit
+- `commits`: DOM operations to commit
+- `effects`: scheduled effects to run post commit
 
 ### Work Loop
 The work loop traverses the Fiber tree depth-first:
@@ -60,18 +60,30 @@ Hooks are stored in a WeakMap keyed by Fiber node:
 
 ---
 
-## Roadmap
+## File map (high level)
+- `src/react_lib/createElement.ts` — vnode factory
+- `src/react_lib/jsx-dev-runtime.ts` — JSX runtime entry
+- `src/react_lib/fiber.ts` — fiber shape, begin/complete work, child fiber creation
+- `src/react_lib/render.ts` — evaluate components, per-fiber diff, end reconciliation
+- `src/react_lib/commits.ts` — DOM commit operations
+- `src/react_lib/updateProperties.ts` — prop/listener/attr diff helpers
+- `src/react_lib/hooks.ts` — `useState`, `useEffect`, `useLayoutEffect`
+- `src/react_lib/runtime_context.ts` — current root/fiber + hook bookkeeping
+- `src/react_lib/scheduling.ts` — time-sliced work loop + scheduling
+- `src/app/main.tsx` — demo app
 
-- [x] Basic rendering
-- [x] Virtual DOM reconciliation
-- [x] Hooks system
-- [x] Multi-root support
-- [x] Fiber architecture
-- [ ] Time slicing (yielding to browser)
-- [ ] Priority-based scheduling
-- [ ] Error boundaries
-- [ ] Suspense
-- [ ] Concurrent features
+---
+
+## Known Limitations / Future Work
+This project intentionally stops short of full React parity.
+Possible extensions:
+
+- Priority lanes & update types
+- Suspense / async rendering
+- Error boundaries
+- Improved testing harness
+- Dev-only diagnostics & warnings
+- Better DX for hook misuse detection
 
 ---
 
@@ -79,7 +91,6 @@ Hooks are stored in a WeakMap keyed by Fiber node:
 
 This implementation is inspired by:
 - React Fiber architecture
-- "React in 400 lines" blog posts
 - Diract blog series on React internals
 
 Built to understand React's internals through hands-on implementation.
