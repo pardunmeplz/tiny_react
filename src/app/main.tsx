@@ -28,8 +28,7 @@ const App = () => {
 
     if (state > 0) return <div>
         Counter list
-        < Counter key={"A"} updateCount={() => setState((x: number) => x + 1)
-        } />
+        < Counter key={"A"} updateCount={() => setState((x: number) => x + 1)} />
         < Counter />
         < Counter key={"B"} updateCount={() => setState((x: number) => x - 1)} />
         {state}
